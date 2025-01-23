@@ -6,6 +6,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"slices"
+	"strings"
 
 	"golang.org/x/net/html"
 )
@@ -23,7 +26,7 @@ func CheckURL(url string) (string, error) {
 	return response.Request.Host, nil
 }
 
-func Scrape(url, host string) {
+func Scrape(url string) {
 	client := http.DefaultClient
 
 	// This check helps to avoid infinite loops (in the future, when I try to make this recursive)
@@ -41,7 +44,7 @@ func Scrape(url, host string) {
 	}
 	fmt.Printf("%s\tValid link\t%d\n", url, statusCode)
 	// TODO get links inside current site
-	links, err := GetLinks(body)
+	links, err := GetLinks(body, url)
 	if err != nil {
 		log.Printf("Error getting links: %v\n", err)
 	}
@@ -52,20 +55,41 @@ func Scrape(url, host string) {
 }
 
 // TODO I don' t like how this is going
-func GetLinks(body []byte) ([]string, error) {
+func GetLinks(body []byte, baseURL string) ([]string, error) {
 	links := []string{}
+
+	// Parse the base URL
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid base URL %s: %w\n", baseURL, err)
+	}
 
 	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to parse HTML body: %w\n", err)
 	}
 
 	var extractLinks func(*html.Node)
 	extractLinks = func(n *html.Node) {
 		if n.Type == html.ElementNode && n.Data == "a" {
 			for _, attr := range n.Attr {
-				if attr.Key == "href" {
-					links = append(links, attr.Val)
+				if attr.Key == "href" && attr.Val != "" {
+					if strings.HasPrefix(attr.Val, "#") {
+						continue
+					}
+
+					// Parse and resolve the URL
+					href, err := base.Parse(attr.Val)
+					if err != nil {
+						log.Printf("skipping invalid URL: %s: %v", attr.Val, err)
+						continue
+					}
+
+					normalizedLink := href.String()
+					if slices.Contains(links, normalizedLink) {
+						continue
+					}
+					links = append(links, normalizedLink)
 				}
 			}
 		}

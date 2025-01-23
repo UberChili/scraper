@@ -24,10 +24,11 @@ func main() {
 	// Call scrape function and store valid links
 	// Or dead links instead?
 	// CheckStatus(*urlPtr)
-	host, err := CheckURL(*urlPtr)
+	_, err := CheckURL(*urlPtr)
 	if err != nil {
 		fmt.Println("Error when trying to read URL: " + err.Error())
 		return
 	}
-	Scrape(*urlPtr, host)
+	// Scrape(*urlPtr, host)
+	Scrape(*urlPtr)
 }
